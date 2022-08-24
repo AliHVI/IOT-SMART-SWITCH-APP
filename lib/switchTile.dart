@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-
 class SwitchTile extends StatefulWidget {
   final Switch_ switchItem;
 
@@ -26,7 +25,7 @@ class _SwitchTileState extends State<SwitchTile> {
       trailing: ElevatedButton(
         onPressed: () {
           setState(() {
-            widget.switchItem.state = !widget.switchItem.state;
+            widget.switchItem.state ? widget.switchItem.turnOff(widget.switchItem.name) : widget.switchItem.turnOn(widget.switchItem.name);
           });
         },
         style: ElevatedButton.styleFrom(
@@ -70,10 +69,12 @@ class Switch_ {
 
   void turnOn(name) {
     print("$name is on");
+    this.state = true;
   }
 
   void turnOff(name) {
     print("$name is off");
+    this.state = false ; 
   }
 
   void rename(name) {

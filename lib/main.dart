@@ -1,18 +1,11 @@
 // ignore_for_file: unnecessary_string_escapes, prefer_const_constructors, non_constant_identifier_names, prefer_const_literals_to_create_immutables
 import 'package:flutter/material.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
-import 'package:uitest/esptouch.dart';
 import 'package:uitest/switchTile.dart';
 import 'package:uitest/switch_bottomsheet.dart';
-import 'dart:async';
-import 'dart:io';
-import 'package:flutter/foundation.dart';
-import 'dart:developer' as developer;
-import 'package:flutter/services.dart';
 import 'package:mqtt_client/mqtt_client.dart';
 import 'package:mqtt_client/mqtt_server_client.dart';
 import 'package:uitest/add_connection_screen.dart';
-
 
 void main() {
   runApp(const MyApp());
@@ -57,6 +50,7 @@ class MyHomePageState extends State<MyHomePage> {
   void updateState() {
     setState(() {});
   }
+
   @override
   void initState() {
     super.initState();
@@ -75,7 +69,10 @@ class MyHomePageState extends State<MyHomePage> {
             onPressed: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => SecondPage(callback: updateState,)),
+                MaterialPageRoute(
+                    builder: (context) => SecondPage(
+                          callback: updateState,
+                        )),
               );
             },
           ),
@@ -163,8 +160,8 @@ class MyHomePageState extends State<MyHomePage> {
       startActionPane: ActionPane(
         dismissible: DismissiblePane(onDismissed: () {
           setState(() {
-            switchTiles.removeAt(index);
-            switches.removeAt(index);
+            switches.removeWhere((item) => item.id == switchTiles[index].switchItem.id);
+            // switches.removeAt(index);
           });
         }),
         motion: const StretchMotion(),
@@ -173,8 +170,8 @@ class MyHomePageState extends State<MyHomePage> {
           SlidableAction(
             onPressed: (BuildContext context) {
               setState(() {
-                switchTiles.removeAt(index);
-                switches.removeAt(index);
+                switches.removeWhere((item) => item.id == switchTiles[index].switchItem.id);
+                // switches.removeAt(index);
               });
             },
             backgroundColor: Color(0xFFFE4A49),
@@ -247,20 +244,26 @@ class _SecondPageState extends State<SecondPage> {
           child: ListView.builder(
               itemBuilder: ((context, index) {
                 var switches2 = switches.where((s) => s.room == collections[index]).toList();
+                var index2 = 0;
+                List<SwitchTile> switchTiles2 =
+                    switches2.map((p) => SwitchTile(switchItem: p)).toList();
                 if (switches2.isEmpty) {
                   return Container();
                 }
                 return ExpansionTile(
                   title: Text(collections[index]),
-                  children: switches2.isNotEmpty
-                      ? switches2
-                          .map((s) => Slidable(
+                  children: 
+                  switches2.isNotEmpty
+                      ? switches2.map((s) {
+                          index2++;
+                          return Slidable(
                               key: Key(s.id.toString()),
                               groupTag: Object,
                               startActionPane: ActionPane(
                                 dismissible: DismissiblePane(onDismissed: () {
                                   setState(() {
-                                    switches.removeAt(index);
+                                    switches.removeWhere(
+                                        (item) => item.id == switchTiles2[index2].switchItem.id);
                                   });
                                 }),
                                 motion: const StretchMotion(),
@@ -269,7 +272,7 @@ class _SecondPageState extends State<SecondPage> {
                                   SlidableAction(
                                     onPressed: (BuildContext context) {
                                       setState(() {
-                                        switches.removeAt(index);
+                                        switches.removeAt(index2);
                                       });
                                     },
                                     backgroundColor: Color(0xFFFE4A49),
@@ -296,16 +299,11 @@ class _SecondPageState extends State<SecondPage> {
                                   ),
                                 ],
                               ),
-                              child: SwitchTile(switchItem: s)))
-                          .toList()
+                              child: switchTiles2[index2]);
+                        }).toList()
                       : [Text("No Switches in this room")],
                 );
               }),
-              // separatorBuilder: (context, index) => const Divider(
-              //       indent: 60,
-              //       thickness: 1.6,
-              //       height: 0,
-              //     ),
               itemCount: collections.length),
         ),
         floatingActionButton: FloatingActionButton(
@@ -313,302 +311,13 @@ class _SecondPageState extends State<SecondPage> {
             // open new page to add new switch with name and room page
             Navigator.push(
               context,
-              MaterialPageRoute(builder: (context) => Wemos()),
+              MaterialPageRoute(builder: (context) => AddSwitchPage()),
             );
           },
           elevation: 5.0,
           child: const Icon(Icons.add),
         ),
       ),
-    );
-  }
-}
-
-// class AddSwitchPage extends StatefulWidget {
-//   const AddSwitchPage({Key? key}) : super(key: key);
-
-//   @override
-//   State<AddSwitchPage> createState() => _AddSwitchPageState();
-// }
-
-// class _AddSwitchPageState extends State<AddSwitchPage> {
-//   String _connectionName = "";
-//   final _networkInfo = NetworkInfo();
-//   @override
-//   void initState() {
-//     super.initState();
-//     _initNetworkInfo();
-//   }
-
-//   Future<String> _initNetworkInfo() async {
-//     String? wifiName, wifiBSSID, wifiIPv4, wifiIPv6, wifiGatewayIP, wifiBroadcast, wifiSubmask;
-
-//     try {
-//       if (!kIsWeb && Platform.isIOS) {
-//         var status = await _networkInfo.getLocationServiceAuthorization();
-//         if (status == LocationAuthorizationStatus.notDetermined) {
-//           status = await _networkInfo.requestLocationServiceAuthorization();
-//         }
-//         if (status == LocationAuthorizationStatus.authorizedAlways ||
-//             status == LocationAuthorizationStatus.authorizedWhenInUse) {
-//           wifiName = await _networkInfo.getWifiName();
-//         } else {
-//           wifiName = await _networkInfo.getWifiName();
-//         }
-//       } else {
-//         wifiName = await _networkInfo.getWifiName();
-//       }
-//     } on PlatformException catch (e) {
-//       developer.log('Failed to get Wifi Name', error: e);
-//       wifiName = 'Failed to get Wifi Name';
-//     }
-
-//     try {
-//       if (!kIsWeb && Platform.isIOS) {
-//         var status = await _networkInfo.getLocationServiceAuthorization();
-//         if (status == LocationAuthorizationStatus.notDetermined) {
-//           status = await _networkInfo.requestLocationServiceAuthorization();
-//         }
-//         if (status == LocationAuthorizationStatus.authorizedAlways ||
-//             status == LocationAuthorizationStatus.authorizedWhenInUse) {
-//           wifiBSSID = await _networkInfo.getWifiBSSID();
-//         } else {
-//           wifiBSSID = await _networkInfo.getWifiBSSID();
-//         }
-//       } else {
-//         wifiBSSID = await _networkInfo.getWifiBSSID();
-//       }
-//     } on PlatformException catch (e) {
-//       developer.log('Failed to get Wifi BSSID', error: e);
-//       wifiBSSID = 'Failed to get Wifi BSSID';
-//     }
-
-//     try {
-//       wifiIPv4 = await _networkInfo.getWifiIP();
-//     } on PlatformException catch (e) {
-//       developer.log('Failed to get Wifi IPv4', error: e);
-//       wifiIPv4 = 'Failed to get Wifi IPv4';
-//     }
-
-//     try {
-//       wifiIPv6 = await _networkInfo.getWifiIPv6();
-//     } on PlatformException catch (e) {
-//       developer.log('Failed to get Wifi IPv6', error: e);
-//       wifiIPv6 = 'Failed to get Wifi IPv6';
-//     }
-
-//     try {
-//       wifiSubmask = await _networkInfo.getWifiSubmask();
-//     } on PlatformException catch (e) {
-//       developer.log('Failed to get Wifi submask address', error: e);
-//       wifiSubmask = 'Failed to get Wifi submask address';
-//     }
-
-//     try {
-//       wifiBroadcast = await _networkInfo.getWifiBroadcast();
-//     } on PlatformException catch (e) {
-//       developer.log('Failed to get Wifi broadcast', error: e);
-//       wifiBroadcast = 'Failed to get Wifi broadcast';
-//     }
-
-//     try {
-//       wifiGatewayIP = await _networkInfo.getWifiGatewayIP();
-//     } on PlatformException catch (e) {
-//       developer.log('Failed to get Wifi gateway address', error: e);
-//       wifiGatewayIP = 'Failed to get Wifi gateway address';
-//     }
-
-//     try {
-//       wifiSubmask = await _networkInfo.getWifiSubmask();
-//     } on PlatformException catch (e) {
-//       developer.log('Failed to get Wifi submask', error: e);
-//       wifiSubmask = 'Failed to get Wifi submask';
-//     }
-//     // Future.delayed(Duration(seconds: 40), () {
-//     setState(() {
-//       _connectionName = wifiName!;
-//     });
-
-//     // });
-//     return wifiName ?? 'unknown';
-//     // setState(() {
-//     //   _connectionName = wifiName!;
-//     // });
-//   }
-
-//   var previous_connectionName = "";
-//   int _currentStep = 0;
-//   StepperType stepperType = StepperType.horizontal;
-//   @override
-//   Widget build(BuildContext context) {
-//     return Scaffold(
-//       appBar: AppBar(
-//         title: Text('Flutter Stepper Demo'),
-//         centerTitle: true,
-//       ),
-//       body: Column(
-//         children: [
-//           Expanded(
-//             child: Stepper(
-//               type: stepperType,
-//               physics: ScrollPhysics(),
-//               elevation: 0,
-//               currentStep: _currentStep,
-//               onStepTapped: (step) => tapped(step),
-//               steps: <Step>[
-//                 Step(
-//                   title: Text(''),
-//                   content: Column(
-//                     children: <Widget>[
-//                       const Text(
-//                           "Enter your phone's settings and select the desired device in the Wi-Fi section.\nHint : The name of the device will include 'ESP8266'\nHint : Password is '123456789' by default ",
-//                           style: TextStyle(
-//                             wordSpacing: 1.1,
-//                           )),
-//                       SizedBox(
-//                         height: 20,
-//                       ),
-//                       FutureBuilder(
-//                           future: _initNetworkInfo(),
-//                           builder: (context, snapshot) {
-//                             if (snapshot.hasData) {
-//                               return Text(
-//                                 snapshot.data.toString(),
-//                                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-//                               );
-//                             } else {
-//                               return CircularProgressIndicator();
-//                             }
-//                           }),
-//                       SizedBox(
-//                         height: 20,
-//                       ),
-//                       ElevatedButton(
-//                           onPressed: (() {
-//                             AppSettings.openWIFISettings();
-//                           }),
-//                           child: Text('Open Settings')),
-//                       ElevatedButton(
-//                         onPressed: (() {
-//                           if (_connectionName.contains('zone')) {
-//                             setState(() {
-//                               _currentStep = 1;
-//                             });
-//                           } else {
-//                             SnackBar snackBar = SnackBar(
-//                               content: Text('Please connect to an ESP8266 device'),
-//                               duration: Duration(seconds: 2),
-//                             );
-//                             ScaffoldMessenger.of(context).showSnackBar(snackBar);
-//                           }
-//                           // continued();
-//                         }),
-//                         child: Text('Continue'),
-//                       )
-//                     ],
-//                   ),
-//                   isActive: _currentStep > 0,
-//                   state: _currentStep > 0 ? StepState.complete : StepState.disabled,
-//                 ),
-//                 Step(
-//                   title: Text(''),
-//                   content: Column(
-//                     children: <Widget>[
-//                       Text(
-//                           'You are connected to $_connectionName\n Enter SSID and Password of your local network'),
-//                       TextFormField(
-//                         decoration: InputDecoration(
-//                           labelText: 'SSID',
-//                         ),
-//                       ),
-//                       TextFormField(
-//                         decoration: InputDecoration(
-//                           labelText: 'Password',
-//                         ),
-//                       ),
-//                       ElevatedButton(
-//                         onPressed: continued,
-//                         child: Text('Connect'),
-//                       ),
-//                       ElevatedButton(
-//                         onPressed: continued,
-//                         child: Text('Continue'),
-//                       ),
-//                       ElevatedButton(onPressed: cancel, child: Text('Back')),
-//                     ],
-//                   ),
-//                   isActive: _currentStep >= 1,
-//                   state: _currentStep > 1 ? StepState.complete : StepState.disabled,
-//                 ),
-//                 Step(
-//                   title: Text(''),
-//                   content: Column(
-//                     children: <Widget>[],
-//                   ),
-//                   isActive: _currentStep >= 2,
-//                   state: _currentStep >= 2 ? StepState.complete : StepState.disabled,
-//                 ),
-//               ],
-//               controlsBuilder: (BuildContext context, ControlsDetails controlsDetails) =>
-//                   Container(),
-//             ),
-//           ),
-//         ],
-//       ),
-//     );
-//   }
-
-//   switchStepsType() {
-//     setState(() => stepperType == StepperType.vertical
-//         ? stepperType = StepperType.horizontal
-//         : stepperType = StepperType.vertical);
-//   }
-
-//   tapped(int step) {
-//     setState(() => _currentStep = step);
-//   }
-
-//   continued() {
-//     _currentStep < 2 ? setState(() => _currentStep += 1) : null;
-//   }
-
-//   cancel() {
-//     _currentStep > 0 ? setState(() => _currentStep -= 1) : null;
-//   }
-// }
-
-class _ExpandRow extends StatelessWidget {
-  const _ExpandRow({Key? key, required this.switches, required this.room}) : super(key: key);
-  final List<Switch_> switches;
-  final String room;
-  @override
-  Widget build(BuildContext context) {
-    return ExpansionTile(
-      title: Text(
-        room,
-        style: const TextStyle(
-          color: Colors.black,
-        ),
-      ),
-      children: switches.map((p) => SwitchTile(switchItem: p)).toList(),
-    );
-  }
-}
-
-class _ExpandRows extends StatelessWidget {
-  const _ExpandRows({Key? key, required this.switches}) : super(key: key);
-  final List<Switch_> switches;
-  @override
-  Widget build(BuildContext context) {
-    List<_ExpandRow> rows = collections
-        .map((room) =>
-            _ExpandRow(switches: switches.where((s) => s.room == room).toList(), room: room))
-        .toList();
-    return ListView.builder(
-      itemCount: collections.length,
-      itemBuilder: (context, index) {
-        return rows[index];
-      },
     );
   }
 }
@@ -778,74 +487,3 @@ List<String> images = [
   "assets/images/plug.png",
   "assets/images/plug.png",
 ];
-// class SwitchBottomSheet extends StatefulWidget {
-//   const SwitchBottomSheet({Key? key, required this.switchItem}) : super(key: key);
-//   final Switch_ switchItem;
-
-//   @override
-//   State<SwitchBottomSheet> createState() => _SwitchBottomSheetState();
-// }
-
-// class _SwitchBottomSheetState extends State<SwitchBottomSheet>{
-//   Switch_ get switchItem => widget.switchItem;
-//   TextEditingController _controller = TextEditingController();
-//   @override
-//   void initState() {
-//     _controller.text = switchItem.name;
-//     super.initState();
-//   }
-//   void updateSwitchName(String name) {
-//     setState(() {
-//       switchItem.name = name;
-//     });
-//   }
-
-//   @override
-//   Widget build(BuildContext context) {
-//     return Padding(
-//       padding: const EdgeInsets.all(16.0),
-//       child: Column(
-//         mainAxisSize: MainAxisSize.min,
-//         crossAxisAlignment: CrossAxisAlignment.start,
-//         children: <Widget>[
-//           Padding(
-//             padding: const EdgeInsets.all(10.0),
-//             child: Text(
-//               switchItem.name,
-//               style: TextStyle(
-//                 fontSize: 20,
-//               ),
-//             ),
-//           ),
-//           TextField(
-//             controller: _controller,
-//             decoration: const InputDecoration(
-//               focusedBorder: OutlineInputBorder(
-//                 borderSide: BorderSide(color: Colors.orange),
-//                 borderRadius: BorderRadius.all(Radius.circular(25.0)),
-//                 gapPadding: 5.0,
-//               ),
-//               labelText: 'Enter Name',
-//               labelStyle: TextStyle(),
-//             ),
-//           ),
-//           Padding(
-//             padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-//             child: ElevatedButton(
-//                 onPressed: () {
-//                   switchItem.rename(_controller.text);
-//                   Navigator.pop(context);
-//                 },
-//                 child: const Text('Save')),
-//           ),
-//           const SizedBox(
-//             height: 20,
-//           ),
-//           Row(
-//             children: <Widget>[],
-//           ),
-//         ],
-//       ),
-//     );
-//   }
-// }

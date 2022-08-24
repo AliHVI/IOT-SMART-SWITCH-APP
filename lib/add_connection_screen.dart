@@ -12,11 +12,66 @@ import 'package:mqtt_client/mqtt_client.dart';
 import 'package:mqtt_client/mqtt_server_client.dart';
 import 'package:http/http.dart' as http;
 
+const String broker = 'test.mosquitto.org';
+const int port = 1883;
 Future<void> _makePostRequest(String value) async {
   final url = Uri.parse('http://192.168.4.1/flutter/posts?value=$value');
   final response = await http.get(url);
   print('Status code: ${response.statusCode}');
   print('Body: ${response.body}');
+}
+
+final client = MqttServerClient.withPort(broker, '', port);
+void connect() async {
+  print('connecting');
+  client.setProtocolV311();
+  //client.websocketProtocols = MqttClientConstants.protocolsSingleDefault;
+  //client.port = port;
+  // client.secure = true;
+  // client.securityContext = SecurityContext.defaultContext;
+  client.logging(on: true);
+  client.keepAlivePeriod = 60;
+  client.onConnected = () => print('connected');
+  client.onDisconnected = onDisconnected;
+  client.onSubscribed = onSubscribed;
+  client.pongCallback = pong;
+
+  final connMessage = MqttConnectMessage().startClean()
+      // .withWillTopic('willtopic')
+      // .withWillMessage('Will message')
+      // .withWillQos(MqttQos.atLeastOnce)
+      ;
+  client.connectionMessage = connMessage;
+  try {
+    await client.connect();
+  } catch (e) {
+    print('Exception: $e');
+    client.disconnect();
+  }
+  StreamSubscription ppi =
+      client.updates!.listen((List<MqttReceivedMessage<MqttMessage>> messageList) {
+    final MqttPublishMessage recieveMess = messageList[0].payload as MqttPublishMessage;
+    final payload = MqttPublishPayload.bytesToStringAsString(recieveMess.payload.message);
+    if (messageList[0].topic == "register/000") {}
+    print(
+        'EXAMPLE::Change notification:: topic is <${messageList[0].topic}>, payload is <-- $payload -->');
+    print('');
+  });
+}
+
+void onConnected() => print('Connected');
+void onDisconnected() => print('Disconnected');
+void onSubscribed(String topic) => print('Subscribed topic: $topic');
+void pong() => print('Ping response client callback invoked');
+
+void _publish(String message) {
+  final MqttClientPayloadBuilder builder = MqttClientPayloadBuilder();
+
+  builder.clear();
+  builder.addString(message);
+
+  print('Publishing message "$message" to topic ${'iot/flutter/mytest'}');
+  client.publishMessage('iot/flutter/mytest', MqttQos.exactlyOnce, builder.payload!);
 }
 
 class AddSwitchPage extends StatefulWidget {
@@ -33,15 +88,16 @@ class _AddSwitchPageState extends State<AddSwitchPage> {
   TextEditingController ssidController = TextEditingController();
   TextEditingController passwordController = TextEditingController();
 
-  
   @override
   void initState() {
     super.initState();
     _initNetworkInfo();
+    connect();
   }
+
   Future<String> _initNetworkInfo() async {
     String? wifiName, wifiBSSID, wifiIPv4, wifiIPv6, wifiGatewayIP, wifiBroadcast, wifiSubmask;
-    
+
     try {
       if (!kIsWeb && Platform.isIOS) {
         var status = await _networkInfo.getLocationServiceAuthorization();
@@ -127,15 +183,13 @@ class _AddSwitchPageState extends State<AddSwitchPage> {
       _connectionName = wifiName ?? "";
       if (_connectionName != "") {
         connected = true;
-      }
-      else {
+      } else {
         connected = false;
       }
     });
     return wifiName ?? 'unknown';
-    
   }
-  
+
   var previous_connectionName = "";
   int _currentStep = 0;
   StepperType stepperType = StepperType.horizontal;
@@ -168,20 +222,20 @@ class _AddSwitchPageState extends State<AddSwitchPage> {
                       SizedBox(
                         height: 20,
                       ),
-                      FutureBuilder(
-                          future: !connected ? _initNetworkInfo() : null,
-                          builder: (context, snapshot) {
-                            if (snapshot.hasData) {
-                              previous_connectionName = _connectionName;
-                              return Text(
-                                snapshot.data.toString(),
-                                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                              );
-                            } else {
-                              return CircularProgressIndicator();
-                            }
-                          }),
-                      
+                      // FutureBuilder(
+                      //     future:connected? _initNetworkInfo() : null,
+                      //     builder: (context, snapshot) {
+                      //       if (snapshot.hasData) {
+                      //         previous_connectionName = _connectionName;
+                      //         return Text(
+                      //           snapshot.data.toString(),
+                      //           style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      //         );
+                      //       } else {
+                      //         return CircularProgressIndicator();
+                      //       }
+                      //     }),
+                      Text(_connectionName),
                       SizedBox(
                         height: 20,
                       ),
@@ -192,7 +246,7 @@ class _AddSwitchPageState extends State<AddSwitchPage> {
                           child: Text('Open Settings')),
                       ElevatedButton(
                         onPressed: (() {
-                          if (_connectionName.contains('zone')) {
+                          if (_connectionName.contains('Phone')) {
                             setState(() {
                               _currentStep = 1;
                             });
@@ -233,15 +287,16 @@ class _AddSwitchPageState extends State<AddSwitchPage> {
                       ),
                       ElevatedButton(
                         onPressed: (() {
-                          String value = "";
-                          int ssidLength = ssidController.text.length;
-                          int passLength = passwordController.text.length;
-                          if (ssidLength + passLength < 10) value = '0';
-                          value += (ssidLength + passLength).toString();
-                          if (ssidLength < 10) value += '0';
-                          value +=
-                              ssidLength.toString() + ssidController.text + passwordController.text;
-                          _makePostRequest(value);
+                          // String value = "";
+                          // int ssidLength = ssidController.text.length;
+                          // int passLength = passwordController.text.length;
+                          // if (ssidLength + passLength < 10) value = '0';
+                          // value += (ssidLength + passLength).toString();
+                          // if (ssidLength < 10) value += '0';
+                          // value +=
+                          //     ssidLength.toString() + ssidController.text + passwordController.text;
+                          // _makePostRequest(value);
+                          client.subscribe("register/000", MqttQos.atMostOnce);
                           continued;
                         }),
                         child: Text('Connect'),
