@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:uitest/main.dart';
-import 'package:uitest/switchTile.dart';
-import 'model/model.dart';
+import 'models/switch.dart';
 
 class SwitchBottomSheet extends StatefulWidget {
   const SwitchBottomSheet({Key? key, required this.switchItem, required this.callback(String name)})
@@ -66,7 +65,7 @@ class _SwitchBottomSheetState extends State<SwitchBottomSheet> {
       maxChildSize: 0.9,
       builder: (context, scrollController) {
         return Container(
-          decoration:const BoxDecoration(
+          decoration: const BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.only(
               topLeft: Radius.circular(25.0),
@@ -89,7 +88,7 @@ class _SwitchBottomSheetState extends State<SwitchBottomSheet> {
                 padding: const EdgeInsets.all(10.0),
                 child: Text(
                   switchItem.name,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 20,
                   ),
                 ),
@@ -105,9 +104,9 @@ class _SwitchBottomSheetState extends State<SwitchBottomSheet> {
                 decoration: InputDecoration(
                   focusedBorder: OutlineInputBorder(
                     borderSide: _controller.text.isNotEmpty
-                        ? BorderSide(color: Colors.orange)
-                        : BorderSide(color: Colors.red),
-                    borderRadius: BorderRadius.all(Radius.circular(25.0)),
+                        ? const BorderSide(color: Colors.orange)
+                        : const BorderSide(color: Colors.red),
+                    borderRadius: const BorderRadius.all(Radius.circular(25.0)),
                     gapPadding: 5.0,
                   ),
                   labelText: 'Enter Name',
@@ -117,7 +116,7 @@ class _SwitchBottomSheetState extends State<SwitchBottomSheet> {
                   onPressed: () {
                     switchItem.rename(_controller.text);
                     _controller.text.isNotEmpty ? widget.callback(_controller.text) : null;
-                    
+
                     Navigator.pop(context);
                   },
                   child: const Text('Save')),
@@ -128,9 +127,8 @@ class _SwitchBottomSheetState extends State<SwitchBottomSheet> {
                 width: MediaQuery.of(context).size.width * 0.5,
                 child: DropdownButtonFormField(
                     elevation: 20,
-                    
                     menuMaxHeight: MediaQuery.of(context).size.height * 0.35,
-                    decoration:const InputDecoration(
+                    decoration: const InputDecoration(
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.all(Radius.circular(25.0)),
                         gapPadding: 5.0,
@@ -143,10 +141,11 @@ class _SwitchBottomSheetState extends State<SwitchBottomSheet> {
                     ),
                     value: menuSelecteditem,
                     items: collections
-                        .map((item) => DropdownMenuItem(value: item, child: Text(item)))
-                        .toList() + [
+                            .map((item) => DropdownMenuItem(value: item, child: Text(item)))
+                            .toList() +
+                        [
                           DropdownMenuItem(
-                            value:null,
+                            value: null,
                             child: Column(
                               children: [
                                 const Divider(
@@ -164,14 +163,18 @@ class _SwitchBottomSheetState extends State<SwitchBottomSheet> {
                           ),
                         ],
                     onChanged: (item) => setState(() {
-                          menuSelecteditem = item.toString();
-                          switchItem.room = item.toString();
+                          if (item != "Add new Room") {
+                            menuSelecteditem = item.toString();
+                            switchItem.room = item.toString();
+                          } else {
+                            ///ToDo : show dialog box with one textfield for get new room name and add to collections list
+                          }
                         })),
               ),
               const SizedBox(height: 10),
               Container(
                 height: 300,
-                decoration:const BoxDecoration(
+                decoration: const BoxDecoration(
                   borderRadius: BorderRadius.all(Radius.circular(25.0)),
                   color: Colors.grey,
                 ),
@@ -181,10 +184,10 @@ class _SwitchBottomSheetState extends State<SwitchBottomSheet> {
                     thickness: 6,
                     thumbVisibility: true,
                     interactive: true,
-                    radius:const Radius.circular(25.0),
+                    radius: const Radius.circular(25.0),
                     child: GridView.count(
                       shrinkWrap: true,
-                      physics: ClampingScrollPhysics(),
+                      physics: const ClampingScrollPhysics(),
                       crossAxisCount: 4,
                       crossAxisSpacing: 8,
                       childAspectRatio: 1,

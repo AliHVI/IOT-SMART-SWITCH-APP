@@ -2,6 +2,8 @@
 // is an example app for a published plugin, it's better to have everything in
 // one file so that all of the examples are visible on https://pub.dev/packages/esptouch_flutter/example
 
+// ignore_for_file: prefer_const_constructors
+
 import 'dart:async';
 
 import 'package:esptouch_flutter/esptouch_flutter.dart';
@@ -12,19 +14,20 @@ import 'package:network_info_plus/network_info_plus.dart';
 final _networkInfo = NetworkInfo();
 
 class Wemos extends StatefulWidget {
+  const Wemos({Key? key}) : super(key: key);
+
   @override
-  _MyAppState createState() => _MyAppState();
+  MyAppState createState() => MyAppState();
 }
 
-class _MyAppState extends State<Wemos> {
+class MyAppState extends State<Wemos> {
   final GlobalKey<FormState> formKey = GlobalKey<FormState>();
   final TextEditingController ssid = TextEditingController();
   final TextEditingController bssid = TextEditingController();
   final TextEditingController password = TextEditingController();
   final TextEditingController expectedTaskResults = TextEditingController();
   final TextEditingController waitUdpSending = TextEditingController();
-  final TextEditingController thresholdSucBroadcastCount =
-      TextEditingController();
+  final TextEditingController thresholdSucBroadcastCount = TextEditingController();
   ESPTouchPacket packet = ESPTouchPacket.broadcast;
 
   @override
@@ -83,8 +86,7 @@ class _MyAppState extends State<Wemos> {
       password: password.text,
       packet: packet,
       taskParameter: ESPTouchTaskParameter().copyWith(
-        thresholdSucBroadcastCount:
-            int.tryParse(thresholdSucBroadcastCount.text),
+        thresholdSucBroadcastCount: int.tryParse(thresholdSucBroadcastCount.text),
         expectedTaskResults: int.tryParse(expectedTaskResults.text),
       ),
     );
@@ -175,7 +177,7 @@ class _MyAppState extends State<Wemos> {
 }
 
 class TaskRoute extends StatefulWidget {
-  TaskRoute({required this.task});
+  const TaskRoute({Key? key, required this.task}) : super(key: key);
 
   final ESPTouchTask task;
 
@@ -209,7 +211,9 @@ class TaskRouteState extends State<TaskRoute> {
                 title: Text('No devices found'),
                 actions: <Widget>[
                   TextButton(
-                    onPressed: () => Navigator.of(context)..pop()..pop(),
+                    onPressed: () => Navigator.of(context)
+                      ..pop()
+                      ..pop(),
                     child: Text('OK'),
                   ),
                 ],
@@ -277,8 +281,7 @@ class TaskRouteState extends State<TaskRoute> {
                 child: Row(
                   children: <Widget>[
                     Text('BSSID: ', style: textTheme.bodyText1),
-                    Text(result.bssid,
-                        style: TextStyle(fontFamily: 'monospace')),
+                    Text(result.bssid, style: TextStyle(fontFamily: 'monospace')),
                   ],
                 ),
               ),
@@ -304,33 +307,31 @@ class TaskRouteState extends State<TaskRoute> {
       appBar: AppBar(
         title: Text('Task'),
       ),
-      body: Container(
-        child: StreamBuilder<ESPTouchResult>(
-          builder: (context, AsyncSnapshot<ESPTouchResult> snapshot) {
-            if (snapshot.hasError) {
-              return error(context, 'Error in StreamBuilder');
-            }
-            if (!snapshot.hasData) {
-              final primaryColor = Theme.of(context).primaryColor;
-              return Center(
-                child: CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation(primaryColor),
-                ),
-              );
-            }
-            switch (snapshot.connectionState) {
-              case ConnectionState.active:
-                return resultList(context);
-              case ConnectionState.none:
-                return noneState(context);
-              case ConnectionState.done:
-                return resultList(context);
-              case ConnectionState.waiting:
-                return waitingState(context);
-            }
-          },
-          stream: stream,
-        ),
+      body: StreamBuilder<ESPTouchResult>(
+        builder: (context, AsyncSnapshot<ESPTouchResult> snapshot) {
+          if (snapshot.hasError) {
+            return error(context, 'Error in StreamBuilder');
+          }
+          if (!snapshot.hasData) {
+            final primaryColor = Theme.of(context).primaryColor;
+            return Center(
+              child: CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation(primaryColor),
+              ),
+            );
+          }
+          switch (snapshot.connectionState) {
+            case ConnectionState.active:
+              return resultList(context);
+            case ConnectionState.none:
+              return noneState(context);
+            case ConnectionState.done:
+              return resultList(context);
+            case ConnectionState.waiting:
+              return waitingState(context);
+          }
+        },
+        stream: stream,
       ),
     );
   }
@@ -341,13 +342,12 @@ class TaskParameterDetails extends StatelessWidget {
     Key? key,
     required this.color,
     required this.expectedTaskResults,
-    
     required this.thresholdSucBroadcastCount,
   }) : super(key: key);
 
   final Color color;
   final TextEditingController expectedTaskResults;
-  
+
   final TextEditingController thresholdSucBroadcastCount;
 
   @override
@@ -369,7 +369,6 @@ class TaskParameterDetails extends StatelessWidget {
           hintText: 1,
           helperText: 'The number of devices you expect to scan.',
         ),
-        
         OptionalIntegerTextField(
           controller: thresholdSucBroadcastCount,
           labelText: 'Broadcast count success threshold',
@@ -407,6 +406,7 @@ class OptionalIntegerTextField extends StatelessWidget {
 
         final v = int.tryParse(value, radix: 10);
         if (v == null) return 'Please enter an integer number';
+        return null;
       },
       autovalidateMode: AutovalidateMode.onUserInteraction,
       decoration: InputDecoration(
@@ -421,8 +421,7 @@ class OptionalIntegerTextField extends StatelessWidget {
 const helperSSID = "SSID is the technical term for a network name. "
     "When you set up a wireless home network, "
     "you give it a name to distinguish it from other networks in your neighbourhood.";
-const helperBSSID =
-    "BSSID is the MAC address of the wireless access point (router).";
+const helperBSSID = "BSSID is the MAC address of the wireless access point (router).";
 const helperPassword = "The password of the Wi-Fi network";
 
 /// The method channel is used to get the SSID and BSSID.
@@ -433,8 +432,7 @@ const helperPassword = "The password of the Wi-Fi network";
 ///
 /// For more info: https://github.com/smaho-engineering/esptouch_flutter/blob/master/example/README.md#get-wifi-details
 class SimpleWifiInfo {
-  static const platform =
-      MethodChannel('eng.smaho.com/esptouch_plugin/example');
+  static const platform = MethodChannel('eng.smaho.com/esptouch_plugin/example');
 
   /// Get WiFi SSID using platform channels.
   ///
