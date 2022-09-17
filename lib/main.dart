@@ -1,17 +1,22 @@
 // ignore_for_file: unnecessary_string_escapes, prefer_const_constructors, non_constant_identifier_names, prefer_const_literals_to_create_immutables, avoid_print, library_private_types_in_public_api
 
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+
+import 'add_connection_screen.dart';
 import 'category_page.dart';
-import 'models/switch.dart';
-import 'models/data_switches.dart';
+import 'mqtt_config.dart';
+import 'switch.dart';
+import 'data_switches.dart';
 import 'switch_bottomsheet.dart';
 import 'switch_tile.dart';
-import 'package:flutter/material.dart';
-import 'dart:convert';
-import 'package:flutter_slidable/flutter_slidable.dart';
 
+import 'package:flutter/material.dart';
+import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'firebase_options.dart';
+import 'utils/firebase_options.dart';
 
 import 'theme/theme_constants.dart';
 import 'theme/theme_manager.dart';
@@ -21,6 +26,7 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+  FirebaseDatabase.instance.setPersistenceEnabled(true);
   runApp(MyApp());
 }
 
@@ -83,9 +89,41 @@ class MyHomePageState extends State<MyHomePage> {
   bool isDark = false;
   bool gridview = false;
 
-  late int i;
+  int i = 0;
 
-  final swRef = FirebaseDatabase.instance.ref("/test");
+  final swRef = FirebaseDatabase.instance.ref("All/test");
+  late StreamSubscription<DatabaseEvent> removes;
+  late StreamSubscription<DatabaseEvent> added;
+  late StreamSubscription<DatabaseEvent> updates;
+
+  @override
+  void initState() {
+    setupMqttClient();
+    init_switches();
+    removes = swRef.onChildRemoved.listen(
+      (event) {
+        print(event.snapshot.key);
+        init_switches();
+      }, // OK GO ON delete switch with this id
+    );
+    added = swRef.onChildAdded.listen((event) {
+      init_switches();
+    });
+    updates = swRef.onValue.listen((event) {
+      init_switches();
+    });
+
+    super.initState();
+  }
+
+  @override
+  void dispose() {
+    removes.cancel();
+    updates.cancel();
+    added.cancel();
+    MQobject.disconnect();
+    super.dispose();
+  }
 
   void updateTabSelection(int index, String buttonText) {
     setState(() {
@@ -98,18 +136,10 @@ class MyHomePageState extends State<MyHomePage> {
   }
 
   @override
-  void initState() {
-    swRef.onChildRemoved.listen((event) {
-      init_switches();
-    });
-    init_switches();
-    super.initState();
-  }
-
   @override
   Widget build(BuildContext context) {
     List<SwitchTile> switchTiles = switches.map((p) => SwitchTile(switchItem: p)).toList();
-
+    switchTiles.sort((a, b) => a.switchItem.id.compareTo(b.switchItem.id));
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.title),
@@ -134,11 +164,6 @@ class MyHomePageState extends State<MyHomePage> {
                 });
               },
               icon: !gridview ? Icon(Icons.grid_view_rounded) : Icon(Icons.view_list_rounded)),
-          // Switch(
-          //     value: _themeManager.themeMode == ThemeMode.dark,
-          //     onChanged: (newValue) {
-          //       _themeManager.toggleTheme(newValue);
-          //     })
           IconButton(
               onPressed: (() =>
                   _themeManager.toggleTheme(_themeManager.themeMode == ThemeMode.dark)),
@@ -159,20 +184,34 @@ class MyHomePageState extends State<MyHomePage> {
                 crossAxisCount: 2,
               ),
               itemCount: switches.length,
-              itemBuilder: (BuildContext context, int index) {
-                return Card(
-                  child: switchTiles[index],
-                );
-              },
+              itemBuilder: (context, index) => buildCards(switchTiles, index, context),
             ),
       floatingActionButton: FloatingActionButton(
         onPressed: () async {
-          final snapshot = await FirebaseDatabase.instance.ref('All/test').get();
-          var encoded = jsonEncode(snapshot.value); // String
-          var decoded = jsonDecode(encoded); // Map<String, dynamic>
-          setState(() {
-            decoded.forEach((k, v) => switches.add(Switch_.fromJson(v)));
-          });
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => AddSwitchPage()),
+          );
+          // final switchData = {
+          //   "id": "sw${s_id_generator()}",
+          //   "name": "Switch ${s_id_generator()}",
+          //   "room": "Room ${s_id_generator()}",
+          //   "state": false,
+          //   "icon": "assets/images/plug.png"
+          // };
+          // Map<String, Map> updates = {};
+          // print(i);
+
+          // updates['All/test/sw${s_id_generator()}'] = switchData;
+          // FirebaseDatabase.instance.ref().update(updates);
+          // i += 1;
+          // final snapshot = await FirebaseDatabase.instance.ref('test').get();
+          // var encoded = jsonEncode(snapshot.value); // String
+          // var decoded = jsonDecode(encoded); // Map<String, dynamic>
+          // print(encoded);
+          // setState(() {
+          //   decoded.forEach((v) => switches.add(Switch_.fromJson(v)));
+          // });
         },
         elevation: 5.0,
         child: const Icon(Icons.add),
@@ -182,22 +221,94 @@ class MyHomePageState extends State<MyHomePage> {
     );
   }
 
-  Future<List<Switch_>> init_switches() async {
+  Card buildCards(List<SwitchTile> switchTiles, int index, BuildContext context) {
+    return Card(
+      elevation: 10,
+      child: Column(
+        children: [
+          Flexible(
+            flex: 1,
+            fit: FlexFit.tight,
+            child: (switchTiles[index].switchItem.icon.contains("assets/images"))
+                ? Image.asset(
+                    switchTiles[index].switchItem.icon,
+                    fit: BoxFit.contain,
+                    color: switchTiles[index].switchItem.icon.contains(".png")
+                        ? Theme.of(context).colorScheme.secondary
+                        : null,
+                  )
+                : Image.file(File(switchTiles[index].switchItem.icon)),
+          ),
+          Flexible(
+            flex: 1,
+            fit: FlexFit.tight,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 5),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(switchTiles[index].switchItem.name),
+                  ElevatedButton(
+                    onPressed: () {
+                      setState(() {
+                        switchTiles[index].switchItem.state
+                            ? switchTiles[index]
+                                .switchItem
+                                .turnOff(switchTiles[index].switchItem.name)
+                            : switchTiles[index]
+                                .switchItem
+                                .turnOn(switchTiles[index].switchItem.name);
+                      });
+                    },
+                    style: ElevatedButton.styleFrom(
+                      primary: switchTiles[index].switchItem.state
+                          ? Colors.teal.shade800
+                          : Colors.redAccent.shade700,
+                      // fixedSize: const Size(50, 50),
+                      elevation: 10,
+                      shadowColor: Colors.black,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      side: switchTiles[index].switchItem.state
+                          ? const BorderSide(
+                              color: Colors.white,
+                              width: 4,
+                            )
+                          : const BorderSide(
+                              color: Colors.black,
+                              width: 1.0,
+                            ),
+                    ),
+                    child: Text(switchTiles[index].switchItem.state ? "ON" : "OFF"),
+                  ),
+                ],
+              ),
+            ),
+          )
+        ],
+      ),
+    );
+  }
+
+  Future<void> init_switches() async {
     final snapshot = await FirebaseDatabase.instance.ref('All/test').get();
     var encoded = jsonEncode(snapshot.value); // String
     var decoded = jsonDecode(encoded); // Map<String, dynamic>
+
     setState(() {
+      switches.clear();
       decoded.forEach((k, v) => switches.add(Switch_.fromJson(v)));
     });
-    return switches;
   }
 
-  void s_id_generator() {
-    i += 1;
+  int s_id_generator() {
+    return i;
   }
 
   BottomAppBar bottom_app_bar() {
     return BottomAppBar(
+      // color: Theme.of(context).colorScheme.primary,
       shape: const CircularNotchedRectangle(),
       notchMargin: 10.0,
       child: Row(
@@ -205,18 +316,23 @@ class MyHomePageState extends State<MyHomePage> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: <Widget>[
           IconButton(
+            color: Colors.white,
             icon: Icon(Icons.home),
             onPressed: () {
               updateTabSelection(0, "Home");
+              print('13789\$&ali');
             },
           ),
           IconButton(
+            color: Colors.white,
             icon: const Icon(Icons.schedule),
             onPressed: () {
               updateTabSelection(1, "Timings");
+              MQobject.disconnect();
             },
           ),
           IconButton(
+            color: Colors.white,
             icon: const Icon(Icons.settings),
             onPressed: () {
               //TODO : Design Settings PAGE
@@ -224,6 +340,7 @@ class MyHomePageState extends State<MyHomePage> {
             },
           ),
           IconButton(
+            color: Colors.white,
             icon: const Icon(Icons.mic),
             onPressed: () {
               //TODO : open dialog box for recieve voice and desired animation
@@ -235,19 +352,20 @@ class MyHomePageState extends State<MyHomePage> {
     );
   }
 
-  Divider Mydivider() {
-    return Divider(
-      indent: 60,
-      thickness: 1.6,
-      height: 0,
+  Widget Mydivider() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Divider(
+        indent: 60,
+        thickness: 1.6,
+        height: 0,
+      ),
     );
   }
 
   Slidable slidableTiles(List<SwitchTile> switchTiles, int index) {
-    void updateSwitchName(String name) {
-      setState(() {
-        switchTiles[index].switchItem.name = name;
-      });
+    void updateSwitch() {
+      setState(() {});
     }
 
     return Slidable(
@@ -282,14 +400,11 @@ class MyHomePageState extends State<MyHomePage> {
                         ),
                         ElevatedButton(
                             onPressed: (() {
-                              setState(() { 
-                                // switchTiles[index]
-                                //     .switchItem
-                                //     .deleteItem(switchTiles[index].switchItem.id);
-                                DatabaseReference ref =
-                                    FirebaseDatabase.instance.ref('All/test/-NAoPpF8QFZrbxWSHenv');
-                                ref.remove();
-                                //switches.removeWhere((item) => item.id == switchTiles[index].switchItem.id);
+                              setState(() {
+                                switchTiles[index]
+                                    .switchItem
+                                    .deleteItem(switchTiles[index].switchItem.id);
+                                // switches.removeWhere((item) => item.id == switchTiles[index].switchItem.id);
                                 // switches.removeAt(index);
                               });
                               Navigator.pop(context);
@@ -308,12 +423,11 @@ class MyHomePageState extends State<MyHomePage> {
           ),
           SlidableAction(
             onPressed: (context) {
-              // _panelController.open();
               pushBottomSheet(
                   context: context,
                   btmsheet: SwitchBottomSheet(
                     switchItem: switchTiles[index].switchItem,
-                    callback: updateSwitchName,
+                    callback: updateSwitch,
                   ));
               setState(() {});
             },
@@ -327,15 +441,17 @@ class MyHomePageState extends State<MyHomePage> {
       child: switchTiles[index],
     );
   }
+
+  Future<void> setupMqttClient() async {
+    await MQobject.connect();
+    // MQobject.subscribe("$_connectionName/${MQobject.registerTopic}", MqttQos.atLeastOnce);
+  }
 }
 
-void doNothing(BuildContext context) {}
-
 void pushBottomSheet({required BuildContext context, required Widget btmsheet}) {
-  //isbtmshtOpened = false;
   showModalBottomSheet(
     isScrollControlled: true,
-    clipBehavior: Clip.none,
+    clipBehavior: Clip.antiAlias,
     elevation: 50.0,
     shape: RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(25.0))),
     backgroundColor: Colors.transparent,
@@ -344,45 +460,25 @@ void pushBottomSheet({required BuildContext context, required Widget btmsheet}) 
   );
 }
 
-class SwitchList with ChangeNotifier {
-  List<Switch_> itemsInList = [];
-  void addSwitch(Switch_ switchItem) {
-    itemsInList.add(switchItem);
-    notifyListeners();
-  }
-
-  void removeSwitch(Switch_ switchItem) {
-    itemsInList.remove(switchItem);
-    notifyListeners();
-  }
-}
-
 List<String> collections = ["Room 1", "Room 2", "Room 3", "Room 4", "Room 5"];
 
 List<String> images = [
   "assets/images/plug.png",
-  "assets/images/plug.png",
-  "assets/images/plug.png",
-  "assets/images/plug.png",
-  "assets/images/plug.png",
-  "assets/images/plug.png",
-  "assets/images/plug.png",
-  "assets/images/plug.png",
-  "assets/images/plug.png",
-  "assets/images/plug.png",
-  "assets/images/plug.png",
-  "assets/images/plug.png",
-  "assets/images/plug.png",
-  "assets/images/plug.png",
-  "assets/images/plug.png",
-  "assets/images/plug.png",
-  "assets/images/plug.png",
-  "assets/images/plug.png",
-  "assets/images/plug.png",
-  "assets/images/plug.png",
-  "assets/images/plug.png",
-  "assets/images/plug.png",
-  "assets/images/plug.png",
-  "assets/images/plug.png",
-  "assets/images/plug.png",
+  "assets/images/air-conditioner.png",
+  "assets/images/electric-stove.png",
+  "assets/images/laundry.png",
+  "assets/images/loudspeaker.png",
+  "assets/images/microwave.png",
+  "assets/images/mixer-blender.png",
+  "assets/images/3248571.png",
+  "assets/images/phone-charger.png",
+  "assets/images/rice-cooker.png",
+  "assets/images/toaster.png",
+  // "assets/images/vacuum-cleaner.png ",
+  "assets/images/washing-machine.png",
+  "assets/images/water-dispenser.png",
+  "assets/images/water-pump.png",
+  "assets/images/wifi-router.png",
+  "assets/images/ex.jpg",
 ];
+List<String> inAppImages = [];

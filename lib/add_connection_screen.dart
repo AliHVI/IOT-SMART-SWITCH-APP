@@ -1,21 +1,26 @@
-// ignore_for_file: unnecessary_string_escapes, prefer_const_constructors, non_constant_identifier_names, prefer_const_literals_to_create_immutables, avoid_print
+// ignore_for_file: unnecessary_string_escapes, prefer_const_constructors, non_constant_identifier_names, prefer_const_literals_to_create_immutables, avoid_print, no_leading_underscores_for_local_identifiers
+
+import 'dart:io';
+
 import 'package:app_settings/app_settings.dart';
+import 'package:firebase_database/firebase_database.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:network_info_plus/network_info_plus.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:uuid/uuid.dart';
 import 'dart:async';
 import 'dart:convert';
-
+import 'dart:developer' as developer;
 import 'package:mqtt_client/mqtt_client.dart';
 import 'package:http/http.dart' as http;
-import 'package:uitest/models/mqtt_config.dart';
+import 'package:uitest/mqtt_config.dart';
 import 'package:wifi_iot/wifi_iot.dart';
-
-MQTTClientManager MQobject = MQTTClientManager();
 
 Future<void> makePostRequest(String value) async {
   final url = Uri.parse('http://192.168.4.1/flutter/posts?value=$value');
-  final response = await http.get(url);
-  print('Status code: ${response.statusCode}');
-  print('Body: ${response.body}');
+  http.get(url);
 }
 
 class AddSwitchPage extends StatefulWidget {
@@ -27,28 +32,78 @@ class AddSwitchPage extends StatefulWidget {
 
 class _AddSwitchPageState extends State<AddSwitchPage> {
   bool connected = false;
+  String? _connectionName;
+  String? registerUID;
+  int? pins;
   TextEditingController ssidController = TextEditingController();
   TextEditingController passwordController = TextEditingController();
 
   final _formKey = GlobalKey<FormState>();
-
+  final _networkInfo = NetworkInfo();
   @override
   void initState() {
     super.initState();
-    setupMqttClient();
-    // setupUpdatesListener();
+    // setupMqttClient();
+    setupUpdatesListener();
   }
 
   @override
   void dispose() {
     ssidController.dispose();
     passwordController.dispose();
+    MQobject.unSubscribe("${registerUID!}/${MQobject.registerTopic}");
+
     super.dispose();
   }
 
-  Future<String?> getSSID() async {
-    String? ssidname = await WiFiForIoTPlugin.getSSID();
-    return ssidname;
+  Future<bool> requestWifiInfoPermisson() async {
+    print('Checking Android permissions');
+
+    PermissionStatus status = await Permission.location.status;
+    // Blocked?
+    if (status.isDenied || status.isRestricted) {
+      // Ask the user to unblock
+      if (await Permission.location.request().isGranted) {
+        // Either the permission was already granted before or the user just granted it.
+        print('Location permission granted');
+        return true;
+      } else {
+        print('Location permission not granted');
+        return false;
+      }
+    } else {
+      print('Permission already granted (previous execution?)');
+      return true;
+    }
+  }
+
+  Future<String?> _initNetworkInfo() async {
+    String? wifiName;
+    bool isGranted = await requestWifiInfoPermisson();
+    if (isGranted) {
+      try {
+        if (!kIsWeb && Platform.isIOS) {
+          var status = await _networkInfo.getLocationServiceAuthorization();
+          if (status == LocationAuthorizationStatus.notDetermined) {
+            status = await _networkInfo.requestLocationServiceAuthorization();
+          }
+          if (status == LocationAuthorizationStatus.authorizedAlways ||
+              status == LocationAuthorizationStatus.authorizedWhenInUse) {
+            wifiName = await _networkInfo.getWifiName();
+          } else {
+            wifiName = await _networkInfo.getWifiName();
+          }
+        } else {
+          wifiName = await _networkInfo.getWifiName();
+        }
+      } on PlatformException catch (e) {
+        developer.log('Failed to get Wifi Name', error: e);
+        wifiName = 'Failed to get Wifi Name';
+      }
+    }
+    _connectionName = wifiName;
+
+    return wifiName;
   }
 
   var previous_connectionName = "";
@@ -61,9 +116,12 @@ class _AddSwitchPageState extends State<AddSwitchPage> {
       onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
       child: Scaffold(
         appBar: AppBar(
-          title: Text('Flutter Stepper Demo'),
+          title: Text(""),
           centerTitle: true,
           actions: [
+            (_currentStep == 0)
+                ? IconButton(onPressed: () => setState(() {}), icon: Icon(Icons.refresh))
+                : Container(),
             IconButton(
                 onPressed: switchStepsType,
                 icon: stepperType == StepperType.vertical
@@ -94,7 +152,7 @@ class _AddSwitchPageState extends State<AddSwitchPage> {
                           height: 20,
                         ),
                         FutureBuilder(
-                            future: getSSID(),
+                            future: _initNetworkInfo(),
                             builder: (context, snapshot) {
                               if (snapshot.hasData) {
                                 return Text(
@@ -131,6 +189,7 @@ class _AddSwitchPageState extends State<AddSwitchPage> {
                               //   );
                               //   ScaffoldMessenger.of(context).showSnackBar(snackBar);
                               // }
+
                               continued();
                             }),
                             child: Text('Continue'),
@@ -190,11 +249,22 @@ class _AddSwitchPageState extends State<AddSwitchPage> {
                           child: ElevatedButton(
                             onPressed: (() {
                               if (_formKey.currentState!.validate()) {
+                                registerUID =
+                                    _connectionName!.substring(1, _connectionName!.length - 1);
+                                print(registerUID);
                                 makePostRequest(generate_value());
-
-                                //MQobject.subscribe("register/000", MqttQos.atLeastOnce);
-
-                                continued;
+                                FocusManager.instance.primaryFocus?.unfocus();
+                                Future.doWhile(() async => await Future.delayed(
+                                      Duration(seconds: 5),
+                                      () {
+                                        return WiFiForIoTPlugin.connect('a.zone',
+                                            password: '123789\$@ali',
+                                            security: NetworkSecurity.WPA,
+                                            withInternet: true,
+                                            joinOnce: false);
+                                      },
+                                    ));
+                                continued();
                               }
                             }),
                             style: ElevatedButton.styleFrom(primary: Color(0xFF344955)),
@@ -218,9 +288,27 @@ class _AddSwitchPageState extends State<AddSwitchPage> {
                     state: _currentStep > 1 ? StepState.complete : StepState.disabled,
                   ),
                   Step(
+                    //TODO :  show switches witch added in previous step
                     title: Text(''),
-                    content: Column(
-                      children: <Widget>[],
+                    content: ListView(
+                      shrinkWrap: true,
+                      children: <Widget>[
+                        SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton(
+                              onPressed: () {
+                                // WiFiForIoTPlugin.connect('a.zone', password: '123789\$@ali',security: NetworkSecurity.WPA , withInternet: true ,joinOnce: false);
+                                MQobject.subscribe(
+                                    "${registerUID!}/${MQobject.registerTopic.toString()}",
+                                    MqttQos.atLeastOnce);
+                              },
+                              child: Text("Retry"),
+                            )),
+                        SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton(
+                                onPressed: () => addNewPairedSW(pins!), child: Text("Confirm")))
+                      ],
                     ),
                     isActive: _currentStep >= 2,
                     state: _currentStep >= 2 ? StepState.complete : StepState.disabled,
@@ -250,22 +338,42 @@ class _AddSwitchPageState extends State<AddSwitchPage> {
 
   Future<void> setupMqttClient() async {
     await MQobject.connect();
-    //MQobject.subscribe('', MqttQos.atLeastOnce);
+    // MQobject.subscribe("$_connectionName/${MQobject.registerTopic}", MqttQos.atLeastOnce);
+    //MQobject.subscribe(MQobject.registerTopic, MqttQos.atLeastOnce);
   }
 
   void setupUpdatesListener() {
     MQobject.getMessagesStream()!.listen((List<MqttReceivedMessage<MqttMessage?>>? massage) {
       final recMess = massage![0].payload as MqttPublishMessage;
       final payload = MqttPublishPayload.bytesToStringAsString(recMess.payload.message);
+      var topic = massage[0].topic;
+      print('MQTTClient::Message received on topic: <$topic> is $payload\n');
 
-      print('MQTTClient::Message received on topic: <${massage[0].topic}> is $payload\n');
-
-      if (massage[0].topic == MQobject.registerTopic) {
+      if (topic == "${registerUID!}/${MQobject.registerTopic}" && payload.isNotEmpty) {
         var encoded = jsonDecode(payload);
-        int pins = encoded["poles"];
-        print(pins);
+        pins = encoded["pins"];
+
+        //addNewPairedSW(pins);
       }
     });
+  }
+
+  void addNewPairedSW(int pins) {
+    for (int i = 0; i < pins; i++) {
+      final switchData = {
+        "id": Uuid().v1(),
+        "name": "${registerUID!} - $i",
+        "room": "All",
+        "state": false,
+        "icon": "assets/images/plug.png"
+      };
+      Map<String, Map> updates = {};
+      updates['All/test/${switchData["id"]}'] = switchData;
+      FirebaseDatabase.instance.ref().update(updates);
+      print(i);
+    }
+    MQobject.publishMessage("${registerUID!}/${MQobject.registerTopic}", "");
+    print(pins);
   }
 
   switchStepsType() {
